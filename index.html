@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kartaška tabela 4 igrača</title>
+  <style>
+    :root { --border: #ddd; --shadow: rgba(0,0,0,.06); --yellow: #ffe066; --blueRow: #f2f8ff; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 12px; background: #fff; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+
+    .card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px var(--shadow); width: 100%; margin-bottom: 12px; }
+
+    .grid-names { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 10px; }
+    .grid-inputs { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+
+    label { display: block; font-size: 12px; margin-bottom: 6px; }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    button { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-size: 14px; }
+    .btn { background: #1976d2; color: #fff; }
+    .btnDanger { background: #c62828; color: #fff; }
+    .btnMini { padding: 6px 10px; border-radius: 9px; font-size: 12px; }
+    .btnMiniDanger { background: #c62828; color: #fff; }
+
+    .tableWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid var(--border); }
+    table { border-collapse: collapse; width: 100%; min-width: 820px; }
+    th, td { border: 1px solid #ddd; padding: 10px 8px; text-align: center; white-space: nowrap; }
+    th { background: var(--yellow); }
+    .sumrow td { background: var(--blueRow); font-weight: bold; }
+    .tfoot td { background: var(--yellow); font-weight: bold; }
+
+    @media (max-width: 820px) {
+      .grid-names { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .grid-inputs { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      button { width: 100%; }
+      .actions { width: 100%; }
+    }
+    @media (max-width: 420px) {
+      .grid-names, .grid-inputs { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <div class="card">
+    <div class="grid-names">
+      <div>
+        <label>Igrač 1</label>
+        <input id="p1" type="text" placeholder="Ime" />
+      </div>
+      <div>
+        <label>Igrač 2</label>
+        <input id="p2" type="text" placeholder="Ime" />
+      </div>
+      <div>
+        <label>Igrač 3</label>
+        <input id="p3" type="text" placeholder="Ime" />
+      </div>
+      <div>
+        <label>Igrač 4</label>
+        <input id="p4" type="text" placeholder="Ime" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid-inputs">
+      <div>
+        <label>Unos (Igrač 1)</label>
+        <input id="s1" type="number" step="1" inputmode="numeric" />
+      </div>
+      <div>
+        <label>Unos (Igrač 2)</label>
+        <input id="s2" type="number" step="1" inputmode="numeric" />
+      </div>
+      <div>
+        <label>Unos (Igrač 3)</label>
+        <input id="s3" type="number" step="1" inputmode="numeric" />
+      </div>
+      <div>
+        <label>Unos (Igrač 4)</label>
+        <input id="s4" type="number" step="1" inputmode="numeric" />
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="addBtn" class="btn">Upiši u prvi slobodan red</button>
+      <button id="resetBtn" class="btnDanger">Reset</button>
+    </div>
+  </div>
+
+  <div class="tableWrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:180px">Deli</th>
+          <th id="h1">Igrač 1</th>
+          <th id="h2">Igrač 2</th>
+          <th id="h3">Igrač 3</th>
+          <th id="h4">Igrač 4</th>
+          <th style="width:110px">Brisanje</th>
+        </tr>
+      </thead>
+      <tbody id="body"></tbody>
+      <tfoot id="foot"></tfoot>
+    </table>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  const els = {
+    p: [null, document.getElementById('p1'), document.getElementById('p2'), document.getElementById('p3'), document.getElementById('p4')],
+    s: [null, document.getElementById('s1'), document.getElementById('s2'), document.getElementById('s3'), document.getElementById('s4')],
+    h: [null, document.getElementById('h1'), document.getElementById('h2'), document.getElementById('h3'), document.getElementById('h4')],
+    body: document.getElementById('body'),
+    foot: document.getElementById('foot'),
+    addBtn: document.getElementById('addBtn'),
+    resetBtn: document.getElementById('resetBtn')
+  };
+
+  let state = {
+    names: ["", "Igrač 1", "Igrač 2", "Igrač 3", "Igrač 4"],
+    rounds: [] // each: { applied:[v1..v4] }
+  };
+
+  const toInt = (v) => {
+    if (v === "" || v === null || v === undefined) return 0;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : 0;
+  };
+
+  const displayName = (i) => {
+    const n = (state.names[i] || "").trim();
+    return n ? n : `Igrač ${i}`;
+  };
+
+  const save = () => {
+    try { localStorage.setItem('karte4_state_simple', JSON.stringify(state)); } catch {}
+  };
+  const load = () => {
+    try {
+      const raw = localStorage.getItem('karte4_state_simple');
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') state = obj;
+    } catch {}
+  };
+
+  const setHeaders = () => {
+    for (let i=1;i<=4;i++) els.h[i].textContent = displayName(i);
+  };
+
+  const computeCumulative = () => {
+    const cum = [0,0,0,0,0];
+    const rows = [];
+    for (let r=0;r<state.rounds.length;r++) {
+      const ap = state.rounds[r].applied;
+      for (let i=1;i<=4;i++) cum[i] += ap[i-1];
+      rows.push([...cum]);
+    }
+    return rows;
+  };
+
+  const dealerIndexForRound = (roundIdx) => (roundIdx % 4) + 1;
+
+  const render = () => {
+    setHeaders();
+
+    for (let i=1;i<=4;i++) els.p[i].value = state.names[i] || "";
+
+    els.body.innerHTML = "";
+    els.foot.innerHTML = "";
+
+    const cumRows = computeCumulative();
+
+    for (let idx=0; idx<state.rounds.length; idx++) {
+      const cum = cumRows[idx];
+      const dealer = dealerIndexForRound(idx);
+      const dealerText = `${displayName(dealer)} deli`;
+
+      const tr = document.createElement('tr');
+      tr.className = "sumrow";
+      tr.innerHTML = `
+        <td>${dealerText}</td>
+        <td>${cum[1]}</td>
+        <td>${cum[2]}</td>
+        <td>${cum[3]}</td>
+        <td>${cum[4]}</td>
+        <td>
+          <button class="btnMini btnMiniDanger" data-del="${idx}">Obriši</button>
+        </td>
+      `;
+      els.body.appendChild(tr);
+    }
+
+    const final = cumRows.length ? cumRows[cumRows.length-1] : [0,0,0,0,0];
+    const trF = document.createElement('tr');
+    trF.className = "tfoot";
+    trF.innerHTML = `
+      <td>UKUPNO</td>
+      <td>${final[1]}</td>
+      <td>${final[2]}</td>
+      <td>${final[3]}</td>
+      <td>${final[4]}</td>
+      <td></td>
+    `;
+    els.foot.appendChild(trF);
+
+    // bind delete buttons
+    els.body.querySelectorAll('button[data-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.getAttribute('data-del'));
+        if (!Number.isFinite(i)) return;
+        state.rounds.splice(i, 1);
+        render();
+      });
+    });
+
+    save();
+  };
+
+  const focusPlayer1 = () => {
+    els.s[1].focus();
+    els.s[1].select?.();
+  };
+
+  const clearInputs = () => {
+    for (let i=1;i<=4;i++) els.s[i].value = "";
+  };
+
+  const addRound = () => {
+    const raw = [toInt(els.s[1].value), toInt(els.s[2].value), toInt(els.s[3].value), toInt(els.s[4].value)];
+    state.rounds.push({ applied: raw });
+    clearInputs();
+    render();
+    focusPlayer1();
+  };
+
+  const wire = () => {
+    for (let i=1;i<=4;i++) {
+      els.p[i].addEventListener('input', () => {
+        state.names[i] = els.p[i].value;
+        render();
+      });
+    }
+
+    els.addBtn.addEventListener('click', addRound);
+
+    els.resetBtn.addEventListener('click', () => {
+      if (!confirm("Obrisati sve unose?")) return;
+      state.rounds = [];
+      render();
+      focusPlayer1();
+    });
+
+    // Enter bilo gde u unosima => upis reda + fokus na igrača 1
+    for (let i=1;i<=4;i++) {
+      els.s[i].addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addRound();
+        }
+      });
+    }
+  };
+
+  load();
+  wire();
+  render();
+  focusPlayer1();
+})();
+</script>
+</body>
+</html>
